@@ -58,14 +58,16 @@ export default async function(context: InstancePluginContext) {
         if (action === 'CHAT' || action === 'SHOUT') {
             message = message.replace(/\[special-item=.*?\]/g, '<blueprint>').replace(/<@/g, '<@\u200c>');
             const message_index = message.indexOf(':');
-            const message_username = message_index === -1 ? message.trim() : message.slice(0, message_index);
+            const message_username = message_index === -1 ? message : message.slice(0, message_index);
             const message_content = message_index === -1 ? '' : message.slice(message_index + 1).trim();
 
             queue.push({datetime: dt, message: `**\`${message_username}\`**: ${message_content}`});
         } else if (ACTION_VERBS[action]) {
             const action_verb = ACTION_VERBS[action];
             const message_index = message.indexOf(' ');
-            const message_username = message_index === -1 ? message.trim() : message.slice(0, message_index);
+            const message_username = message.toLowerCase().endsWith(action_verb)
+                ? message.slice(0, -action_verb.length).trim()
+                : message;
             const player_count = instance.playersOnline.size + (action === 'JOIN' ? 0 : -1);
 
             queue.push({datetime: dt, message: `**\`${message_username}\`** ${action_verb} ${message} (${player_count})`});

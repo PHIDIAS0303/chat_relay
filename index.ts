@@ -2,6 +2,51 @@ import type * as lib from '@clusterio/lib';
 import type {Instance, InstancePluginContext} from '@clusterio/host';
 import {Type, Static} from '@sinclair/typebox';
 
+export const chatFromDiscord = Type.Object({
+    author_name: Type.String(),
+    channel_id: Type.String(),
+    datetime: Type.String(),
+    message: Type.String(),
+});
+
+export type ChatFromDiscord = Static<typeof chatFromDiscord>;
+
+// Mirror whatever base class / constructor shape your ChatEvent uses.
+export class ChatFromDiscordEvent extends Event<typeof chatFromDiscord> {
+    constructor(data: ChatFromDiscord) {
+        super(chatFromDiscord, data);
+    }
+}
+
+export const MAX_INBOUND_LENGTH = 400;
+
+// Factorio renders these, so a Discord user could spoof a colour, an item link,
+// or a fake speaker line. Whitelist the real tags rather than matching \[.*\],
+// which would also eat innocent text like "array[0]" or "[lol]".
+const RICH_TEXT_RE = new RegExp(
+    String.raw`\[/?(?:color|font|item|entity|technology|recipe|fluid|tile|virtual-signal`
+    + String.raw`|gps|img|specialisation|achievement|train|planet|space-location|quality)(?:=[^\]]*)?\]`,
+    'gi',
+);
+
+/** Make arbitrary text safe to print in-game. Shared by both processes. */
+export function sanitiseForFactorio(text: string, limit = MAX_INBOUND_LENGTH): string {
+    let clean = text
+        .replace(RICH_TEXT_RE, '')
+        .replace(/[\u0000-\u001f\u007f]/g, '')   // control chars, including newlines
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    // Code points, not UTF-16 units: emoji paste from Discord is real here, and a
+    // lone surrogate in a Lua string sent over stdin is not something I'd trust.
+    const chars = Array.from(clean);
+    if (chars.length > limit) {
+        clean = `${chars.slice(0, limit - 3).join('').trimEnd()}...`;
+    }
+
+    return clean;
+}
+
 export class ChatEvent {
 	declare ['constructor']: typeof ChatEvent;
 	static type = 'event' as const;

@@ -1,5 +1,5 @@
 import type {InstancePluginContext} from '@clusterio/host';
-import {ChatEvent} from './index.js';
+import {ChatEvent, ChatFromDiscordEvent, sanitiseForFactorio} from './index.js';
 
 interface ChatMessage {
     datetime: string;
@@ -23,6 +23,13 @@ function parse_save(line: string): number | null {
     if (!m) return null;
     const slot = AUTOSAVE_NAME_RE.exec(m[1]);
     return slot ? Number(slot[1]) : null;
+}
+
+/* Instance-side half of inbound chat: turn a relayed Discord message into a chat line. */
+
+/** Escape a JS string for embedding in a double-quoted Lua literal. */
+function luaString(text: string): string {
+    return `"${text.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 }
 
 export default async function(context: InstancePluginContext) {
@@ -90,6 +97,24 @@ export default async function(context: InstancePluginContext) {
             const dt = datetime();
             queue.push({datetime: dt, message: `**AUTO SAVE SLOT ${save_slot}**`});
             await flush();
+        }
+    });
+
+    instance.handle(ChatFromDiscordEvent, async (event: ChatFromDiscordEvent) => {
+        // Re-sanitise here too: any producer can publish this event, and this is
+        // the process that actually calls game.print.
+        const author = sanitiseForFactorio(event.author_name, 40);
+        const message = sanitiseForFactorio(event.message);
+        if (!message) return;
+
+        const line = `[Discord] ${author}: ${message}`;
+
+        try {
+            // game.print reaches every player and does NOT fire on_console_chat,
+            // so this cannot echo back out through the outbound half.
+            await instance.sendRcon(`/sc game.print(${luaString(line)})`);
+        } catch (err) {
+            logger.error(`[Chat Relay] Failed to print Discord message in game:\n${(err as Error).stack}`);
         }
     });
 }

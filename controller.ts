@@ -90,15 +90,6 @@ interface Bucket {
     warned: boolean;
 }
 
-/** Config is keyed by instance name; sendTo wants the controller's numeric ID. */
-const findInstanceId = (instanceName: string): number | null => {
-    for (const [id, instance] of controller.instances) {
-        if (instance.name === instanceName) return id;
-    }
-
-    return null;
-};
-
 export default async function(context: ControllerPluginContext) {
     const {controller, logger, plugin} = context;
 
@@ -260,6 +251,14 @@ export default async function(context: ControllerPluginContext) {
         return true;
     };
 
+    const findInstanceId = (instanceName: string): number | null => {
+        for (const [id, instance] of controller.instances) {
+            if (instance.name === instanceName) return id;
+        }
+
+        return null;
+    };
+
     const onDiscordMessage = async (message: Message) => {
         if (shuttingDown) return;
 
@@ -278,6 +277,7 @@ export default async function(context: ControllerPluginContext) {
 
         const datetime = message.createdAt.toISOString();
         const authorName = message.member?.displayName ?? message.author.username;
+
 
         for (const instanceName of instanceNames) {
             const instanceId = findInstanceId(instanceName);

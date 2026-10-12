@@ -130,11 +130,6 @@ export default async function(context: ControllerPluginContext) {
             ? text.slice(0, -verb.length).trim()
             : text;
 
-        if (!instance) {
-            await sendMessage(instance.name, `**\`${name}\`** ${verb}`);
-            return;
-        }
-        
         let pc = '';
 
         try {

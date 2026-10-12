@@ -129,8 +129,9 @@ export default async function(context: ControllerPluginContext) {
         const name = text.toLowerCase().endsWith(verb)
             ? text.slice(0, -verb.length).trim()
             : text;
-    
-        await sendMessage(instanceName, `**\`${name}\`** ${verb}`);
+
+        const pc = await controller.instances.get(instanceName).sendRcon(`/_rcon return #game.connected_players`, false, instanceName);
+        await sendMessage(instanceName, `**\`${name}\`** ${verb} (${pc})`);
     });
 
     controller.config.on('fieldChanged', (field) => {

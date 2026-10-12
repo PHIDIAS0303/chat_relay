@@ -11,21 +11,19 @@ export class ChatEvent {
 	static permission = null;
 
 	constructor(
-		public instanceId: number,
-		public instanceName: string,
-		public action: string,
-		public content: string,
+		public instance_name: string,
+		public datetime: string,
+		public message: string,
 	) {}
 
-	static jsonSchema = Type.Object({
-		'instanceId': Type.Integer(),
-		'instanceName': Type.String(),
-		'action': Type.String(),
-		'content': Type.String(),
+	static json_schema = Type.Object({
+		'instance_name': Type.String(),
+		'datetime': Type.String(),
+		'message': Type.String(),
 	});
 
-	static fromJSON(json: Static<typeof ChatEvent.jsonSchema>) {
-		return new this(json.instanceId, json.instanceName, json.action, json.content);
+	static fromJSON(json: Static<typeof ChatEvent.json_schema>) {
+		return new this(json.instance_name, json.datetime, json.message);
 	}
 }
 

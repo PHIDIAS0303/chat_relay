@@ -3,12 +3,6 @@ import {ChatEvent} from './index.js';
 import * as Discord from 'discord.js';
 
 const MAX_DISCORD_MESSAGE_LENGTH = 1950;
-const ACTION_VERBS: Record<string, string> = {
-    JOIN: 'joined the game',
-    LEAVE: 'left the game',
-    KICK: 'was kicked from the game',
-    BAN: 'was banned from the game',
-};
 
 export default async function(context: ControllerPluginContext) {
     const {controller, logger, plugin} = context;
@@ -50,11 +44,11 @@ export default async function(context: ControllerPluginContext) {
         logger.info('[Chat Relay] Logged in Discord successfully.');
     };
 
-    const sendMessage = async (instanceName: string, message: string) => {
+    const sendMessage = async (instance_name: string, datetime: string, message: string) => {
         if (!client) return;
 
         const mapping = controller.config.get('chat_relay.discord_channel_mapping') as Record<string, string>;
-        const channelId = mapping?.[instanceName];
+        const channelId = mapping?.[instance_name];
         if (!channelId) return;
 
         let channel: Discord.Channel | null;
@@ -73,23 +67,20 @@ export default async function(context: ControllerPluginContext) {
             return;
         }
 
-        let nrcMsg = message;
+        let msg = message;
 
         if (controller.config.get('chat_relay.datetime_on_message')) {
-            const now = new Date();
-            const p = (n: number) => String(n).padStart(2, '0');
-            const stamp = `${now.getFullYear()}${p(now.getMonth() + 1)}${p(now.getDate())} ${p(now.getHours())}${p(now.getMinutes())}${p(now.getSeconds())}`;
-            nrcMsg = `${stamp} ${nrcMsg}`;
+            msg = `${datetime} ${msg}`;
         }
 
         const send = (content: string) => channel.send({content, allowedMentions: {parse: []}});
 
-        if (nrcMsg.length <= MAX_DISCORD_MESSAGE_LENGTH) {
-            await send(nrcMsg);
+        if (msg.length <= MAX_DISCORD_MESSAGE_LENGTH) {
+            await send(msg);
             return;
         }
 
-        let remaining = nrcMsg;
+        let remaining = msg;
 
         while (remaining.length > 0) {
             let chunk = remaining.slice(0, MAX_DISCORD_MESSAGE_LENGTH);
@@ -107,37 +98,8 @@ export default async function(context: ControllerPluginContext) {
     };
 
     controller.handle(ChatEvent, async (request: ChatEvent) => {
-        const {instanceId, instanceName, action, content} = request;
-
-        if (action === 'CHAT' || action === 'SHOUT') {
-            const nrc = content.replace(/\[special-item=.*?\]/g, '<blueprint>').replace(/<@/g, '<@\u200c>');
-            const index = nrc.indexOf(':');
-            const username = index === -1 ? nrc.trim() : nrc.slice(0, index);
-            const msg = index === -1 ? '' : nrc.slice(index + 1).trim();
-            await sendMessage(instanceName, `**\`${username}\`**: ${msg}`);
-            return;
-        }
-
-        const verb = ACTION_VERBS[action];
-        const text = content.trim();
-    
-        if (!verb) {
-            await sendMessage(instanceName, `unknown action ${action} **\`${text}\`**`);
-            return;
-        }
-    
-        const name = text.toLowerCase().endsWith(verb)
-            ? text.slice(0, -verb.length).trim()
-            : text;
-
-        const instance = await controller.instances.get(instanceId);
-
-        if (!instance) {
-            await sendMessage(instanceName, `**\`${name}\`** ${verb}`);
-            return;
-        }
-
-        await sendMessage(instanceName, `**\`${name}\`** ${verb} (${instance.playersOnline.size})`);
+        const {instance_name, datetime, message} = request;
+        await sendMessage(instance_name, datetime, message);
     });
 
     controller.config.on('fieldChanged', (field) => {

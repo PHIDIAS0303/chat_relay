@@ -1,6 +1,6 @@
 {
   "name": "@phidias0303/chat_relay",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "One way chat relay to Discord",
   "author": "PHIDIAS <phidias@aperx.org>",
   "license": "MIT",

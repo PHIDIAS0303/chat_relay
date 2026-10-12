@@ -2,8 +2,8 @@ import type {InstancePluginContext} from '@clusterio/host';
 import {ChatEvent} from './index.js';
 
 interface ChatMessage {
-    action: string;
-    content: string;
+    datetime: string;
+	message: string;
 }
 
 const ACTION_VERBS: Record<string, string> = {
@@ -15,7 +15,6 @@ const ACTION_VERBS: Record<string, string> = {
 
 export default async function(context: InstancePluginContext) {
     const {instance, host, plugin, logger} = context;
-
     const queue: ChatMessage[] = [];
     let flushing = false;
 
@@ -58,13 +57,14 @@ export default async function(context: InstancePluginContext) {
             const message = output.message.trim().replace(/\[special-item=.*?\]/g, '<blueprint>').replace(/<@/g, '<@\u200c>');
             const message_index = message.indexOf(':');
             const message_username = message_index === -1 ? message.trim() : message.slice(0, message_index);
-            const message_content = index === -1 ? '' : message.slice(index + 1).trim();
+            const message_content = message_index === -1 ? '' : message.slice(message_index + 1).trim();
 
             queue.push({datetime: dt, message: `**\`${message_username}\`**: ${message_content}`});
         } else if (ACTION_VERBS[output.action]) {
-            const name = text.toLowerCase().endsWith(ACTION_VERBS[output.action])
-                ? text.slice(0, -ACTION_VERBS[output.action].length).trim()
-                : text;
+            const message = output.message.trim()
+            const name = message.toLowerCase().endsWith(ACTION_VERBS[output.action])
+                ? message.slice(0, -ACTION_VERBS[output.action].length).trim()
+                : message;
 
             queue.push({datetime: dt, message: `**\`${name}\`** ${ACTION_VERBS[output.action]} (${instance.playersOnline.size})`});
         } else {

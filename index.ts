@@ -17,12 +17,12 @@ export class ChatEvent {
 	) {}
 
 	static async fromContext(context: InstancePluginContext) {
-		return new InstancePlugin(context.instance, context.action, context.content);
+		return new ChatEvent(context.instance, context.action, context.content);
 	}
 }
 
 export default async function (context: InstancePluginContext) {
-	await InstancePlugin.fromContext(context);
+	await ChatEvent.fromContext(context);
 }
 
 declare module '@clusterio/lib' {

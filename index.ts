@@ -17,7 +17,7 @@ export class ChatEvent {
 	) {}
 
 	static jsonSchema = Type.Object({
-		'instance': Type.Any(),
+		'instance': Type.Unsafe<Instance>,
 		'action': Type.String(),
 		'content': Type.String(),
 	});

@@ -119,12 +119,18 @@ export default async function(context: ControllerPluginContext) {
         }
 
         const verb = ACTION_VERBS[action];
-
-        if (verb) {
-            await sendMessage(instanceName, `**\`${content.trim()}\`** ${verb}`);
-        } else {
-            await sendMessage(instanceName, `unknown action ${action} **\`${content.trim()}\`**`);
+        const text = content.trim();
+    
+        if (!verb) {
+            await sendMessage(instanceName, `unknown action ${action} **\`${text}\`**`);
+            return;
         }
+    
+        const name = text.toLowerCase().endsWith(verb)
+            ? text.slice(0, -verb.length).trim()
+            : text;
+    
+        await sendMessage(instanceName, `**\`${name}\`** ${verb}`);
     });
 
     controller.config.on('fieldChanged', (field) => {

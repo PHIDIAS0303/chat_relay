@@ -90,6 +90,7 @@ export default async function(context: InstancePluginContext) {
 
             const dt = datetime();
             queue.push({datetime: dt, message: `**AUTO SAVE SLOT ${save_slot}**`});
+            await flush();
         }
     });
 }

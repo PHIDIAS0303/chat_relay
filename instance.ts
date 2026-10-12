@@ -18,7 +18,7 @@ const SAVE_LINE_RE = /Saving to (.+?) \((?:non-)?blocking\)\./;
 // Factorio's autosaves are literally named '_autosave1'..'_autosaveN'.
 const AUTOSAVE_NAME_RE = /^_autosave(\d+)$/;
 
-function parse_save(line: string): slot?: number | null {
+function parse_save(line: string): number | null {
     const m = SAVE_LINE_RE.exec(line);
     if (!m) return null;
     const slot = AUTOSAVE_NAME_RE.exec(m[1]);

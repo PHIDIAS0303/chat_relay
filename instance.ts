@@ -80,7 +80,7 @@ export default async function(context: InstancePluginContext) {
             }
 
             await flush();
-        } else if (output.type === 'info') {
+        } else if (output.type === 'log') {
             let message = output.message.trim();
             const save_slot = parse_save(message);
 

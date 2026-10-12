@@ -1,4 +1,5 @@
 import type * as lib from '@clusterio/lib';
+import type {Instance, InstancePluginContext} from '@clusterio/host';
 import {Type, Static} from '@sinclair/typebox';
 
 export class ChatEvent {
@@ -10,20 +11,14 @@ export class ChatEvent {
 	static permission = null;
 
 	constructor(
-		public instanceName: string,
+		public instance: Instance,
 		public action: string,
 		public content: string,
-	) {
-	}
+	) {}
 
-	static jsonSchema = Type.Object({
-		'instanceName': Type.String(),
-		'action': Type.String(),
-		'content': Type.String(),
-	});
-
-	static fromJSON(json: Static<typeof ChatEvent.jsonSchema>) {
-		return new this(json.instanceName, json.action, json.content);
+	static async fromContext(context: InstancePluginContext) {
+		const instance = context.instance;
+		return new InstancePlugin(context.instance, context.instanceName, context.action, context.content);
 	}
 }
 

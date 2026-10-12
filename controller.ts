@@ -90,6 +90,15 @@ interface Bucket {
     warned: boolean;
 }
 
+/** Config is keyed by instance name; sendTo wants the controller's numeric ID. */
+const findInstanceId = (instanceName: string): number | null => {
+    for (const [id, instance] of controller.instances) {
+        if (instance.name === instanceName) return id;
+    }
+
+    return null;
+};
+
 export default async function(context: ControllerPluginContext) {
     const {controller, logger, plugin} = context;
 
@@ -271,8 +280,22 @@ export default async function(context: ControllerPluginContext) {
         const authorName = message.member?.displayName ?? message.author.username;
 
         for (const instanceName of instanceNames) {
+            const instanceId = findInstanceId(instanceName);
+
+            if (instanceId === null) {
+                if (!warnedNoInstance.has(instanceName)) {
+                    warnedNoInstance.add(instanceName);
+                    logger.warn(
+                        `[Chat Relay] Instance ${instanceName} is mapped for chat but does not exist;`
+                        + ' dropping Discord messages for it.',
+                    );
+                }
+
+                continue;
+            }
+
             try {
-                await controller.sendTo(instanceName, new ChatFromDiscordEvent(
+                await controller.sendTo({instanceId: instanceId}, new ChatFromDiscordEvent(
                     authorName,
                     message.channelId,
                     datetime,

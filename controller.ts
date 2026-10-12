@@ -130,7 +130,7 @@ export default async function(context: ControllerPluginContext) {
             ? text.slice(0, -verb.length).trim()
             : text;
 
-        const id = controller.instances.get(instanceName);
+        const id = [...controller.instances.values()].find(i => i.name === instanceName)?.id;
         const connection = await controller.instances.get(id);
 
         if (!connection) {

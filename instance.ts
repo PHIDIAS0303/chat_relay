@@ -22,7 +22,7 @@ function parse_save(line: string): number | null {
     const m = SAVE_LINE_RE.exec(line);
     if (!m) return null;
     const slot = AUTOSAVE_NAME_RE.exec(m[1]);
-    return slot ? Number(slot[1]) : undefined;
+    return slot ? Number(slot[1]) : null;
 }
 
 export default async function(context: InstancePluginContext) {

@@ -17,8 +17,7 @@ export class ChatEvent {
 	) {}
 
 	static async fromContext(context: InstancePluginContext) {
-		const instance = context.instance;
-		return new InstancePlugin(context.instance, context.instanceName, context.action, context.content);
+		return new InstancePlugin(context.instance, context.action, context.content);
 	}
 }
 

@@ -107,14 +107,14 @@ export default async function(context: ControllerPluginContext) {
     };
 
     controller.handle(ChatEvent, async (request: ChatEvent) => {
-        const {instance, action, content} = request;
+        const {instanceId, instanceName, action, content} = request;
 
         if (action === 'CHAT' || action === 'SHOUT') {
             const nrc = content.replace(/\[special-item=.*?\]/g, '<blueprint>').replace(/<@/g, '<@\u200c>');
             const index = nrc.indexOf(':');
             const username = index === -1 ? nrc.trim() : nrc.slice(0, index);
             const msg = index === -1 ? '' : nrc.slice(index + 1).trim();
-            await sendMessage(instance.name, `**\`${username}\`**: ${msg}`);
+            await sendMessage(instanceName, `**\`${username}\`**: ${msg}`);
             return;
         }
 
@@ -122,7 +122,7 @@ export default async function(context: ControllerPluginContext) {
         const text = content.trim();
     
         if (!verb) {
-            await sendMessage(instance.name, `unknown action ${action} **\`${text}\`**`);
+            await sendMessage(instanceName, `unknown action ${action} **\`${text}\`**`);
             return;
         }
     
@@ -130,14 +130,21 @@ export default async function(context: ControllerPluginContext) {
             ? text.slice(0, -verb.length).trim()
             : text;
 
+        const connection = await controller.instances.get(instanceId);
+
+        if (!connection) {
+            await sendMessage(instanceName, `**\`${name}\`** ${verb}`);
+            return;
+        }
+
         let pc = '';
 
         try {
-            pc = String(await instance.sendRcon('/_rcon return #game.connected_players', false, instance.name)).trim();
+            pc = String(await connection.sendRcon('/_rcon return #game.connected_players', false, instanceName)).trim();
         } catch {
         }
         
-        await sendMessage(instance.name, `**\`${name}\`** ${verb}${pc ? ` (${pc})` : ''}`);
+        await sendMessage(instanceName, `**\`${name}\`** ${verb}${pc ? ` (${pc})` : ''}`);
     });
 
     controller.config.on('fieldChanged', (field) => {

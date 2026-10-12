@@ -16,13 +16,13 @@ export class ChatEvent {
 		public message: string,
 	) {}
 
-	static json_schema = Type.Object({
+	static jsonSchema = Type.Object({
 		'instance_name': Type.String(),
 		'datetime': Type.String(),
 		'message': Type.String(),
 	});
 
-	static fromJSON(json: Static<typeof ChatEvent.json_schema>) {
+	static fromJSON(json: Static<typeof ChatEvent.jsonSchema>) {
 		return new this(json.instance_name, json.datetime, json.message);
 	}
 }

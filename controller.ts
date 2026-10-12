@@ -130,8 +130,21 @@ export default async function(context: ControllerPluginContext) {
             ? text.slice(0, -verb.length).trim()
             : text;
 
-        const pc = await controller.instances.get(instanceName).sendRcon(`/_rcon return #game.connected_players`, false, instanceName);
-        await sendMessage(instanceName, `**\`${name}\`** ${verb} (${pc})`);
+        const id = [...controller.instances.instances.values()].find(i => i.name === instanceName)?.id;
+        const connection = await controller.instances.get(id);
+
+        if (!connection) {
+            await sendMessage(instanceName, `**\`${name}\`** ${verb}`);
+            return;
+        }
+        
+        let pc = '';
+        try {
+            pc = String(await connection.sendRcon('/_rcon return #game.connected_players', false, instanceName)).trim();
+        } catch {
+        }
+        
+        await sendMessage(instanceName, `**\`${name}\`** ${verb}${pc ? ` (${pc})` : ''}`);
     });
 
     controller.config.on('fieldChanged', (field) => {

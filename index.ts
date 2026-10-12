@@ -21,6 +21,10 @@ export class ChatEvent {
 	}
 }
 
+export default async function (context: InstancePluginContext) {
+	await InstancePlugin.fromContext(context);
+}
+
 declare module '@clusterio/lib' {
     interface ControllerConfigFields {
         'chat_relay.discord_bot_token': string;

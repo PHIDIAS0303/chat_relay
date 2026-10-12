@@ -251,9 +251,10 @@ export default async function(context: ControllerPluginContext) {
         return true;
     };
 
+    /** Config is keyed by instance name; sendTo wants the controller's numeric ID. */
     const findInstanceId = (instanceName: string): number | null => {
-        for (const [id, instance] of controller.instances) {
-            if (instance.name === instanceName) return id;
+        for (const instance of controller.instances.values()) {
+            if (instance.config.get('instance.name') === instanceName) return instance.id;
         }
 
         return null;

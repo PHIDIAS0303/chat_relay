@@ -118,7 +118,7 @@ export default async function(context: InstancePluginContext) {
             // game.print reaches every player and does NOT fire on_console_chat,
             // so this cannot echo back out through the outbound half.
             await instance.sendRcon(`/sc game.print(${luaString(line)})`);
-            logger.info(`[Chat Relay] -> ${line}`);
+            logger.info(`[Chat Relay] ${line}`);
         } catch (err) {
             if (!warnedPrintFail.has(instance.name)) {
                 warnedPrintFail.add(instance.name);

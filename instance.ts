@@ -52,23 +52,25 @@ export default async function(context: InstancePluginContext) {
         const now = new Date();
         const p = (n: number) => String(n).padStart(2, '0');
         const dt = `${now.getFullYear()}${p(now.getMonth() + 1)}${p(now.getDate())} ${p(now.getHours())}${p(now.getMinutes())}${p(now.getSeconds())}`;
+        const action = output.action;
+        const message = output.message.trim();
 
-        if (output.action === 'CHAT' || output.action === 'SHOUT') {
-            const message = output.message.trim().replace(/\[special-item=.*?\]/g, '<blueprint>').replace(/<@/g, '<@\u200c>');
+        if (action === 'CHAT' || action === 'SHOUT') {
+            message = message.replace(/\[special-item=.*?\]/g, '<blueprint>').replace(/<@/g, '<@\u200c>');
             const message_index = message.indexOf(':');
             const message_username = message_index === -1 ? message.trim() : message.slice(0, message_index);
             const message_content = message_index === -1 ? '' : message.slice(message_index + 1).trim();
 
             queue.push({datetime: dt, message: `**\`${message_username}\`**: ${message_content}`});
-        } else if (ACTION_VERBS[output.action]) {
-            const message = output.message.trim()
-            const name = message.toLowerCase().endsWith(ACTION_VERBS[output.action])
-                ? message.slice(0, -ACTION_VERBS[output.action].length).trim()
+        } else if (ACTION_VERBS[action]) {
+            const action_verb = ACTION_VERBS[action];
+            const name = message.toLowerCase().endsWith(action_verb)
+                ? message.slice(0, -action_verb.length).trim()
                 : message;
 
-            queue.push({datetime: dt, message: `**\`${name}\`** ${ACTION_VERBS[output.action]} (${instance.playersOnline.size})`});
+            queue.push({datetime: dt, message: `**\`${name}\`** ${action_verb} ${message} (${instance.playersOnline.size})`});
         } else {
-            queue.push({datetime: dt, message: `unknown action ${output.action}`});
+            queue.push({datetime: dt, message: `unknown action ${action} ${message}`});
         }
 
         await flush();

@@ -16,7 +16,7 @@ export default async function(context: InstancePluginContext) {
 
         for (const [action, content] of pending) {
             try {
-                await instance.sendTo('controller', new ChatEvent(instance.name, action, content));
+                await instance.sendTo('controller', new ChatEvent(instance, action, content));
             } catch (err) {
                 failed.push([action, content]);
             }
@@ -32,7 +32,7 @@ export default async function(context: InstancePluginContext) {
 
 		if (host.connector.connected) {
             try {
-                await instance.sendTo('controller', new ChatEvent(instance.name, output.action, output.message));
+                await instance.sendTo('controller', new ChatEvent(instance, output.action, output.message));
             } catch (err) {
                 queue.push([output.action, output.message]);
             }

@@ -1,6 +1,11 @@
 import type * as lib from '@clusterio/lib';
-import type {Instance, InstancePluginContext} from '@clusterio/host';
-import {Type, Static} from '@sinclair/typebox';
+import {Type} from '@sinclair/typebox';
+import type {Static} from '@sinclair/typebox';
+
+/* Shared declarations for the chat relay plugin.
+ * `sanitiseForFactorio` is used by both processes: the controller cleans text
+ * before it leaves, and the instance cleans it again before it reaches game.print.
+ */
 
 export const chatFromDiscord = Type.Object({
     author_name: Type.String(),
@@ -11,10 +16,25 @@ export const chatFromDiscord = Type.Object({
 
 export type ChatFromDiscord = Static<typeof chatFromDiscord>;
 
-// Mirror whatever base class / constructor shape your ChatEvent uses.
-export class ChatFromDiscordEvent extends Event<typeof chatFromDiscord> {
-    constructor(data: ChatFromDiscord) {
-        super(chatFromDiscord, data);
+export class ChatFromDiscordEvent {
+    declare ['constructor']: typeof ChatFromDiscordEvent;
+    static type = 'event' as const;
+    static src = 'controller' as const;
+    static dst = 'instance' as const;
+    static plugin = 'chat_relay' as const;
+    static permission = null;
+
+    constructor(
+        public author_name: string,
+        public channel_id: string,
+        public datetime: string,
+        public message: string,
+    ) {}
+
+    static jsonSchema = chatFromDiscord;
+
+    static fromJSON(json: Static<typeof ChatFromDiscordEvent.jsonSchema>) {
+        return new this(json.author_name, json.channel_id, json.datetime, json.message);
     }
 }
 
@@ -48,68 +68,69 @@ export function sanitiseForFactorio(text: string, limit = MAX_INBOUND_LENGTH): s
 }
 
 export class ChatEvent {
-	declare ['constructor']: typeof ChatEvent;
-	static type = 'event' as const;
-	static src = 'instance' as const;
-	static dst = 'controller' as const;
-	static plugin = 'chat_relay' as const;
-	static permission = null;
+    declare ['constructor']: typeof ChatEvent;
+    static type = 'event' as const;
+    static src = 'instance' as const;
+    static dst = 'controller' as const;
+    static plugin = 'chat_relay' as const;
+    static permission = null;
 
-	constructor(
-		public instance_name: string,
-		public datetime: string,
-		public message: string,
-	) {}
+    constructor(
+        public instance_name: string,
+        public datetime: string,
+        public message: string,
+    ) {}
 
-	static jsonSchema = Type.Object({
-		'instance_name': Type.String(),
-		'datetime': Type.String(),
-		'message': Type.String(),
-	});
+    static jsonSchema = Type.Object({
+        'instance_name': Type.String(),
+        'datetime': Type.String(),
+        'message': Type.String(),
+    });
 
-	static fromJSON(json: Static<typeof ChatEvent.jsonSchema>) {
-		return new this(json.instance_name, json.datetime, json.message);
-	}
+    static fromJSON(json: Static<typeof ChatEvent.jsonSchema>) {
+        return new this(json.instance_name, json.datetime, json.message);
+    }
 }
 
 declare module '@clusterio/lib' {
     interface ControllerConfigFields {
         'chat_relay.discord_bot_token': string;
         'chat_relay.datetime_on_message': boolean;
-		'chat_relay.discord_channel_mapping': Record<string, string>;
-	}
+        'chat_relay.discord_channel_mapping': Record<string, string>;
+    }
 }
 
 export const plugin: lib.PluginDeclaration = {
-	name: 'chat_relay',
-	title: 'Chat Relay',
-	description: 'One way chat relay to Discord.',
-	webEntrypoint: './web',
-	instanceEntrypoint: 'dist/node/instance.js',
-	controllerEntrypoint: 'dist/node/controller.js',
-	controllerConfigFields: {
-		'chat_relay.discord_bot_token': {
-			title: 'Discord Bot Token',	
-			description: 'API Token',
-			type: 'string',
-			credential: ['controller']
-		},
-		'chat_relay.datetime_on_message': {
-			title: 'Message Datetime',
-			description: 'Append datetime in front',
-			type: 'boolean',
-			initialValue: true
-		},
-		'chat_relay.discord_channel_mapping': {
-			title: 'Discord Channels',
-			description: 'Instance and Discord channel ID relations',
-			type: 'object',
-			initialValue: {
-				'S1': '123'
-			},
-		},
-	},
-	messages: [
-		ChatEvent,
-	],
+    name: 'chat_relay',
+    title: 'Chat Relay',
+    description: 'Bidirectional chat relay between Factorio and Discord.',
+    webEntrypoint: './web',
+    instanceEntrypoint: 'dist/node/instance.js',
+    controllerEntrypoint: 'dist/node/controller.js',
+    controllerConfigFields: {
+        'chat_relay.discord_bot_token': {
+            title: 'Discord Bot Token',
+            description: 'API Token',
+            type: 'string',
+            credential: ['controller'],
+        },
+        'chat_relay.datetime_on_message': {
+            title: 'Message Datetime',
+            description: 'Append datetime in front',
+            type: 'boolean',
+            initialValue: true,
+        },
+        'chat_relay.discord_channel_mapping': {
+            title: 'Discord Channels',
+            description: 'Instance and Discord channel ID relations, used in both directions',
+            type: 'object',
+            initialValue: {
+                'S1': '123',
+            },
+        },
+    },
+    messages: [
+        ChatEvent,
+        ChatFromDiscordEvent,
+    ],
 };

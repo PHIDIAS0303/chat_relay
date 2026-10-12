@@ -3,7 +3,7 @@ import {ChatEvent, ChatFromDiscordEvent, sanitiseForFactorio} from './index.js';
 
 interface ChatMessage {
     datetime: string;
-	message: string;
+    message: string;
 }
 
 function datetime(): string {
@@ -25,8 +25,6 @@ function parse_save(line: string): number | null {
     return slot ? Number(slot[1]) : null;
 }
 
-/* Instance-side half of inbound chat: turn a relayed Discord message into a chat line. */
-
 /** Escape a JS string for embedding in a double-quoted Lua literal. */
 function luaString(text: string): string {
     return `"${text.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
@@ -37,11 +35,17 @@ export default async function(context: InstancePluginContext) {
     const queue: ChatMessage[] = [];
     let flushing = false;
 
+    // Log-once guard: a busy channel plus a stopped instance or dead RCON would
+    // otherwise write one error per message. Re-armed on controller connect.
+    const warnedPrintFail = new Set<string>();
+
     const flush = async () => {
         if (flushing || queue.length === 0 || !host.connector.connected) {
             return;
         }
+
         flushing = true;
+
         try {
             while (queue.length > 0 && host.connector.connected) {
                 try {
@@ -59,6 +63,7 @@ export default async function(context: InstancePluginContext) {
 
     instance.hooks.controllerConnectionEvent.attach(plugin.name, async (event) => {
         if (event === 'connect') {
+            warnedPrintFail.clear();
             await flush();
         }
     });
@@ -87,7 +92,7 @@ export default async function(context: InstancePluginContext) {
 
             await flush();
         } else if (output.type === 'log') {
-            let message = output.message.trim();
+            const message = output.message.trim();
             const save_slot = parse_save(message);
 
             if (!save_slot) {
@@ -114,7 +119,10 @@ export default async function(context: InstancePluginContext) {
             // so this cannot echo back out through the outbound half.
             await instance.sendRcon(`/sc game.print(${luaString(line)})`);
         } catch (err) {
-            logger.error(`[Chat Relay] Failed to print Discord message in game:\n${(err as Error).stack}`);
+            if (!warnedPrintFail.has(instance.name)) {
+                warnedPrintFail.add(instance.name);
+                logger.error(`[Chat Relay] Failed to print Discord message in game:\n${(err as Error).stack}`);
+            }
         }
     });
 }

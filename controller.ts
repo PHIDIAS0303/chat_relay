@@ -6,14 +6,20 @@ import {ChatEvent, ChatFromDiscordEvent} from './index.js';
 /* Controller-side halves of the chat relay.
  * Outbound (Factorio -> Discord) talks to the REST API directly: no socket, no intents.
  * Inbound (Discord -> Factorio) needs messageCreate, so it owns a real gateway Client.
- * Both come from the same token and are rebuilt by the same enqueue chain, so rotating
- * the token can't leave one half running on the old credential.
+ * Both are built from the same token and rebuilt by the same enqueue chain, so a token
+ * rotation can't leave one half running on the old credential.
+ *
+ * Both directions read the single `discord_channel_mapping` field (instance name ->
+ * channel ID). The reverse lookup is built by inverting it, so the two directions can
+ * never disagree about which channel belongs to which instance.
  */
 
 // Discord's hard limit is 2000; keep headroom for future decoration.
 const MAX_MESSAGE_LENGTH = 1950;
+
 // Only break on a word boundary if it gets us at least this far into the window.
 const MIN_WORD_BREAK_FILL = 0.5;
+
 const ERROR_UNKNOWN_CHANNEL = 10003;
 
 // Factorio chat scroll is a shared, scarce resource; be stricter than Discord is.
@@ -36,7 +42,7 @@ function splitMessage(text: string, limit: number): string[] {
         return text.length === 0 ? [] : [text];
     }
 
-    // Array.from, not slice, so we never cut an emoji's surrogate pair in half.
+    // Array.from, not slice, so we never cut a surrogate pair in half.
     const chars = Array.from(text);
     const chunks: string[] = [];
     let offset = 0;
@@ -91,14 +97,15 @@ export default async function(context: ControllerPluginContext) {
     let client: Client | null = null;
     let shuttingDown = false;
 
-    // Log-once guards, cleared whenever the config field that feeds them changes.
+    // Log-once guards. A channel that is unmapped or unusable gets hit once per chat
+    // line, which is how a typo in the config turns into a 10k-line log file.
     const warnedNoMapping = new Set<string>();
     const warnedBadChannel = new Set<string>();
     const warnedAmbiguous = new Set<string>();
     const warnedNoInstance = new Set<string>();
     const warnedSendFail = new Set<string>();
 
-    // Inbound channel -> instance names, rebuilt from config rather than inverted lazily.
+    // Inverted view of discord_channel_mapping, rebuilt rather than mutated in place.
     let channelToInstances = new Map<string, string[]>();
     const buckets = new Map<string, Bucket>();
 
@@ -113,16 +120,20 @@ export default async function(context: ControllerPluginContext) {
 
     const getToken = () => controller.config.get('chat_relay.discord_bot_token') as string | undefined;
 
-    // ---------------------------------------------------------------- outbound
+    // --------------------------------------------------------------- outbound
 
     const getChannelId = (instanceName: string): string | null => {
-        const mapping = controller.config.get('chat_relay.discord_channel_mapping') as Record<string, string> | undefined;
+        const mapping = controller.config.get('chat_relay.discord_channel_mapping') as
+            Record<string, string> | undefined;
         const channelId = mapping?.[instanceName];
 
         if (!channelId) {
             if (!warnedNoMapping.has(instanceName)) {
                 warnedNoMapping.add(instanceName);
-                logger.warn(`[Chat Relay] No Discord channel mapped for instance ${instanceName}; dropping its messages.`);
+                logger.warn(
+                    `[Chat Relay] No Discord channel mapped for instance ${instanceName};`
+                    + ' dropping its messages.',
+                );
             }
 
             return null;
@@ -135,21 +146,25 @@ export default async function(context: ControllerPluginContext) {
         if (shuttingDown) return;
 
         const discord = rest;
-        // not configured, or the token was rejected; connect() logged it
+        // Not configured, or the token was rejected. connect() already logged it.
         if (!discord) return;
 
         const channelId = getChannelId(instanceName);
         if (!channelId) return;
 
+        // Read the flag once, so it can't flip between chunks of one message.
         let content = message;
         if (controller.config.get('chat_relay.datetime_on_message')) {
             content = `${datetime} ${content}`;
         }
 
+        // trim() here also means an empty chat line produces zero chunks rather than
+        // a 50006 'cannot send an empty message' from Discord.
         const chunks = splitMessage(content.trim(), MAX_MESSAGE_LENGTH);
 
         for (const chunk of chunks) {
             try {
+                // discord.js REST handles rate limits (429) and retries for us.
                 await discord.post(Routes.channelMessages(channelId), {
                     body: {content: chunk, allowedMentions: {parse: []}},
                 });
@@ -166,20 +181,24 @@ export default async function(context: ControllerPluginContext) {
                     logger.error(`[Chat Relay] Discord send failed for ${instanceName}:\n${stackOf(err)}`);
                 }
 
+                // Don't keep hammering a channel that just rejected us.
                 return;
             }
         }
     };
 
-    // ----------------------------------------------------------------- inbound
+    // ---------------------------------------------------------------- inbound
 
     const rebuildInboundMap = () => {
-        const mapping = controller.config.get('chat_relay.discord_to_factorio_channel_mapping') as
+        const mapping = controller.config.get('chat_relay.discord_channel_mapping') as
             Record<string, string> | undefined;
 
         const next = new Map<string, string[]>();
 
         for (const [instanceName, channelId] of Object.entries(mapping ?? {})) {
+            // A blank value would otherwise map the literal channel ''.
+            if (!channelId) continue;
+
             const names = next.get(channelId) ?? [];
             names.push(instanceName);
             next.set(channelId, names);
@@ -189,8 +208,8 @@ export default async function(context: ControllerPluginContext) {
             if (names.length > 1 && !warnedAmbiguous.has(channelId)) {
                 warnedAmbiguous.add(channelId);
                 logger.warn(
-                    `[Chat Relay] Discord channel ${channelId} is mapped from ${names.length} instances`
-                    + ` (${names.join(', ')}); messages are printed to all of them.`,
+                    `[Chat Relay] Discord channel ${channelId} is mapped by ${names.length} instances`
+                    + ` (${names.join(', ')}); its messages are printed in all of them.`,
                 );
             }
         }
@@ -200,7 +219,7 @@ export default async function(context: ControllerPluginContext) {
 
     const hasInboundMapping = () => channelToInstances.size > 0;
 
-    /** Token bucket per channel. Discord is far chattier than Factorio chat ever is. */
+    /** Token bucket per channel: Discord is far chattier than Factorio chat ever is. */
     const takeToken = (channelId: string): boolean => {
         const now = Date.now();
         let bucket = buckets.get(channelId);
@@ -222,7 +241,7 @@ export default async function(context: ControllerPluginContext) {
         if (bucket.tokens < 1) {
             if (!bucket.warned) {
                 bucket.warned = true;
-                logger.warn(`[Chat Relay] Rate limiting inbound chat from Discord channel ${channelId}; dropping.`);
+                logger.warn(`[Chat Relay] Rate limiting inbound chat from channel ${channelId}; dropping.`);
             }
 
             return false;
@@ -232,62 +251,46 @@ export default async function(context: ControllerPluginContext) {
         return true;
     };
 
-    const findInstanceId = (instanceName: string): number | null => {
-        for (const [id, instance] of controller.instances) {
-            if (instance.name === instanceName) return id;
-        }
-
-        return null;
-    };
-
     const onDiscordMessage = async (message: Message) => {
-        if (shuttingDown || !client) return;
+        if (shuttingDown) return;
 
         // The loop guard. Our own outbound posts are authored by the bot, as are
         // webhooks and other bots, so Factorio -> Discord -> Factorio dies here.
         if (message.author.bot) return;
-        if (!message.inGuild()) return;   // DMs and group DMs aren't mapped to anything
+
+        // DMs, group DMs and other unmapped guilds have no instance behind them.
+        if (!message.inGuild()) return;
 
         const instanceNames = channelToInstances.get(message.channelId);
-        if (!instanceNames) return;       // unmapped channel, another guild, or a thread
+        if (!instanceNames) return;
 
-        const text = sanitiseInbound(message.content);
-        if (!text) return;
-
+        if (!message.content) return;
         if (!takeToken(message.channelId)) return;
 
-        const authorName = sanitiseInbound(message.member?.displayName ?? message.author.username, 40);
+        const datetime = message.createdAt.toISOString();
+        const authorName = message.member?.displayName ?? message.author.username;
 
         for (const instanceName of instanceNames) {
-            const instanceId = findInstanceId(instanceName);
-
-            if (instanceId === null) {
-                if (!warnedNoInstance.has(instanceName)) {
-                    warnedNoInstance.add(instanceName);
-                    logger.warn(`[Chat Relay] Instance ${instanceName} is mapped for inbound chat but does not exist.`);
-                }
-
-                continue;
-            }
-
             try {
-                await controller.sendTo(instanceId, new ChatFromDiscordEvent({
-                    author_name: authorName,
-                    channel_id: message.channelId,
-                    datetime: message.createdAt.toISOString(),
-                    message: text,
-                }));
+                await controller.sendTo(instanceName, new ChatFromDiscordEvent(
+                    authorName,
+                    message.channelId,
+                    datetime,
+                    message.content,
+                ));
             } catch (err) {
-                // A stopped instance plus a busy channel would otherwise be a log flood.
+                // A stopped instance on a busy channel would otherwise be a log flood.
                 if (!warnedSendFail.has(instanceName)) {
                     warnedSendFail.add(instanceName);
-                    logger.error(`[Chat Relay] Failed to relay Discord chat to ${instanceName}:\n${stackOf(err)}`);
+                    logger.error(
+                        `[Chat Relay] Failed to relay Discord chat to ${instanceName}:\n${stackOf(err)}`,
+                    );
                 }
             }
         }
     };
 
-    // ------------------------------------------------------------------ client
+    // ----------------------------------------------------------------- client
 
     const closeGateway = async () => {
         const old = client;
@@ -302,7 +305,7 @@ export default async function(context: ControllerPluginContext) {
         }
     };
 
-    /** Assumes `rest` is authenticated; the token it was built from is the live one. */
+    /** Requires an authenticated `rest`; only ever called from connect()/syncGateway(). */
     const openGateway = async () => {
         const token = getToken();
         if (!token || !rest || client) return;
@@ -318,6 +321,7 @@ export default async function(context: ControllerPluginContext) {
                 logger.error(`[Chat Relay] Inbound handler failed:\n${stackOf(err)}`);
             });
         });
+
         newClient.on('error', err => logger.error(`[Chat Relay] Discord gateway error:\n${stackOf(err)}`));
         newClient.on('shardDisconnect', () => logger.warn('[Chat Relay] Discord gateway disconnected.'));
 
@@ -336,7 +340,7 @@ export default async function(context: ControllerPluginContext) {
         }
 
         client = newClient;
-        logger.info('[Chat Relay] Discord gateway connected (inbound chat enabled).');
+        logger.info('[Chat Relay] Discord gateway connected; inbound chat enabled.');
     };
 
     const syncGateway = async () => {
@@ -349,6 +353,8 @@ export default async function(context: ControllerPluginContext) {
     };
 
     const connect = async () => {
+        // Drop both halves first: the old REST client holds the previous token, and
+        // the old gateway is logged in with it.
         rest = null;
         await closeGateway();
 
@@ -361,6 +367,7 @@ export default async function(context: ControllerPluginContext) {
         const newRest = new REST({version: '10'}).setToken(token);
 
         try {
+            // Fail fast at startup instead of silently on the first chat line.
             const me = await newRest.get(Routes.user('@me')) as {id: string, username: string};
             logger.info(`[Chat Relay] Authenticated with Discord as ${me.username} (${me.id}).`);
         } catch (err) {
@@ -374,7 +381,7 @@ export default async function(context: ControllerPluginContext) {
         await syncGateway();
     };
 
-    // ------------------------------------------------------------------ wiring
+    // ----------------------------------------------------------------- wiring
 
     rebuildInboundMap();
 
@@ -390,7 +397,6 @@ export default async function(context: ControllerPluginContext) {
         } else if (field === 'chat_relay.discord_channel_mapping') {
             warnedNoMapping.clear();
             warnedBadChannel.clear();
-        } else if (field === 'chat_relay.discord_to_factorio_channel_mapping') {
             warnedAmbiguous.clear();
             warnedNoInstance.clear();
             warnedSendFail.clear();
@@ -403,6 +409,8 @@ export default async function(context: ControllerPluginContext) {
     });
 
     controller.hooks.shutdown.attach(plugin.name, async () => {
+        // Nothing to tear down on the REST side; in-flight calls aren't cancellable
+        // and will finish or time out. The gateway does need an explicit destroy.
         shuttingDown = true;
         await closeGateway();
     });

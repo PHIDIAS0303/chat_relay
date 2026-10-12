@@ -3,7 +3,6 @@ import {ChatEvent} from './index.js';
 
 export default async function(context: InstancePluginContext) {
 	const {instance, host, plugin} = context;
-	await InstancePlugin.fromContext(context);
 	let queue: [string, string][] = [];
 
 	instance.hooks.controllerConnectionEvent.attach(plugin.name, async (event) => {

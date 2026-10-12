@@ -64,13 +64,12 @@ export default async function(context: InstancePluginContext) {
             queue.push({datetime: dt, message: `**\`${message_username}\`**: ${message_content}`});
         } else if (ACTION_VERBS[action]) {
             const action_verb = ACTION_VERBS[action];
-            const message_index = message.indexOf(' ');
             const message_username = message.toLowerCase().endsWith(action_verb)
                 ? message.slice(0, -action_verb.length).trim()
                 : message;
             const player_count = instance.playersOnline.size + (action === 'JOIN' ? 0 : -1);
 
-            queue.push({datetime: dt, message: `**\`${message_username}\`** ${action_verb} ${message} (${player_count})`});
+            queue.push({datetime: dt, message: `**\`${message_username}\`** ${action_verb} (${player_count})`});
         } else {
             queue.push({datetime: dt, message: `unknown action ${action} ${message}`});
         }

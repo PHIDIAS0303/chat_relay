@@ -1,7 +1,7 @@
 Chat Relay
 ========================
 
-One way chat relay to Discord.
+Chat relay of Discord and Factorio, seperate channel
 
 Plugin of Clusterio
 https://github.com/clusterio/clusterio

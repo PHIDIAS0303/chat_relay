@@ -53,7 +53,7 @@ export default async function(context: InstancePluginContext) {
         const p = (n: number) => String(n).padStart(2, '0');
         const dt = `${now.getFullYear()}${p(now.getMonth() + 1)}${p(now.getDate())} ${p(now.getHours())}${p(now.getMinutes())}${p(now.getSeconds())}`;
         const action = output.action;
-        const message = output.message.trim();
+        let message = output.message.trim();
 
         if (action === 'CHAT' || action === 'SHOUT') {
             message = message.replace(/\[special-item=.*?\]/g, '<blueprint>').replace(/<@/g, '<@\u200c>');

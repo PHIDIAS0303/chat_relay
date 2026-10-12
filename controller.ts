@@ -131,7 +131,13 @@ export default async function(context: ControllerPluginContext) {
             : text;
 
         const instance = await controller.instances.get(instanceId);
-        await sendMessage(instanceName, `**\`${name}\`** ${verb}${instance.playersOnline.size}`);
+
+        if (!instance) {
+            await sendMessage(instanceName, `**\`${name}\`** ${verb}`);
+            return;
+        }
+
+        await sendMessage(instanceName, `**\`${name}\`** ${verb} (${instance.playersOnline.size})`);
     });
 
     controller.config.on('fieldChanged', (field) => {

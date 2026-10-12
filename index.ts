@@ -16,13 +16,15 @@ export class ChatEvent {
 		public content: string,
 	) {}
 
-	static async fromContext(context: InstancePluginContext) {
-		return new ChatEvent(context.instance, context.action, context.content);
-	}
-}
+	static jsonSchema = Type.Object({
+		'instance': Type.Any(),
+		'action': Type.String(),
+		'content': Type.String(),
+	});
 
-export default async function (context: InstancePluginContext) {
-	await ChatEvent.fromContext(context);
+	static fromJSON(json: Static<typeof ChatEvent.jsonSchema>) {
+		return new this(json.instance, json.action, json.content);
+	}
 }
 
 declare module '@clusterio/lib' {

@@ -42,7 +42,7 @@ export const MAX_INBOUND_LENGTH = 400;
 
 // Factorio renders these, so a Discord user could spoof a colour, an item link,
 // or a fake speaker line. Whitelist the real tags rather than matching \[.*\],
-// which would also eat innocent text like "array[0]" or "[lol]".
+// which would also eat innocent text like 'array[0]' or '[lol]'.
 const RICH_TEXT_RE = new RegExp(
     String.raw`\[/?(?:color|font|item|entity|technology|recipe|fluid|tile|virtual-signal`
     + String.raw`|gps|img|specialisation|achievement|train|planet|space-location|quality)(?:=[^\]]*)?\]`,
@@ -133,4 +133,7 @@ export const plugin: lib.PluginDeclaration = {
         ChatEvent,
         ChatFromDiscordEvent,
     ],
+    features: [
+		'ScriptCommands',
+	],
 };

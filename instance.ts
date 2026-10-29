@@ -81,7 +81,7 @@ export default async function(context: InstancePluginContext) {
                 const message_content = message_index === -1 ? '' : message.slice(message_index + 1).trim();
 
                 queue.push({datetime: dt, message: `**\`${message_username}\`**: ${message_content}`});
-            } else if (action === 'JOIN' || action === 'LEAVE' || action === 'KICK' || action === 'BAN' || action === 'UNBANNED') {
+            } else if (action === 'JOIN' || action === 'LEAVE' || action === 'KICK') {
                 const message_index = message.indexOf(' ');
                 const message_username = message_index === -1 ? message : message.slice(0, message_index);
                 const message_content = message_index === -1 ? '' : message.slice(message_index + 1).trim();

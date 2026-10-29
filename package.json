@@ -1,9 +1,9 @@
 {
   "name": "@phidias0303/chat_relay",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Chat relay of Discord and Factorio, seperate channel",
   "author": "PHIDIAS <phidias@aperx.org>",
-  "license": "MIT",
+  "license": "Apache 2.0",
   "homepage": "https://github.com/PHIDIAS0303/chat_relay#readme",
   "repository": {
     "type": "git",

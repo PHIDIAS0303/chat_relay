@@ -22,18 +22,18 @@
   ],
   "main": "dist/node/index.js",
   "scripts": {
-		"prepare": "tsc --build && webpack-cli --mode production",
+		"prepare": "tsc --build && vite build",
 		"test": "echo \"Error: run tests from root\" && exit 1"
   },
   "peerDependencies": {
+    "@clusterio/controller": "workspace:^",
     "@clusterio/lib": "workspace:^"
   },
   "devDependencies": {
+    "@clusterio/controller": "workspace:^",
     "@clusterio/lib": "workspace:^",
     "@clusterio/web_ui": "workspace:^",
-    "webpack": "catalog:",
-    "webpack-cli": "catalog:",
-    "webpack-merge": "catalog:"
+    "vite": "catalog:"
   },
   "dependencies": {
     "discord.js": "^14.27.0",

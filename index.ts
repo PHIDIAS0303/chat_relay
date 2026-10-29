@@ -104,7 +104,6 @@ export const plugin: lib.PluginDeclaration = {
     name: 'chat_relay',
     title: 'Chat Relay',
     description: 'Bidirectional chat relay between Factorio and Discord.',
-    webEntrypoint: './web',
     instanceEntrypoint: 'dist/node/instance.js',
     controllerEntrypoint: 'dist/node/controller.js',
     controllerConfigFields: {
